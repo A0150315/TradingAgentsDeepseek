@@ -2,7 +2,7 @@ name: 📊 投资组合分析报告
 
 on:
   schedule:
-    - cron: '0 17 * * *'  # UTC 17:00 = 北京时间 01:00
+    - cron: '30 16 * * 0'  # UTC 16:30 = 北京时间周一 00:30 (周日UTC对应周一北京时间)
   workflow_dispatch:
 
 jobs:
