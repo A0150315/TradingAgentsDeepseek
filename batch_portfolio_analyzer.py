@@ -91,12 +91,12 @@ class BatchPortfolioAnalyzer:
                 
                 try:
                     result = future.result()
-                    if result['success']:
+                    if result.success:
                         results.append(result)
-                        print(f"  ✅ [{completed_count}/{len(symbols)}] {symbol}: {result['recommendation']} (置信度: {result['confidence_score']:.2f})")
+                        print(f"  ✅ [{completed_count}/{len(symbols)}] {symbol}: {result.recommendation} (置信度: {result.confidence_score:.2f})")
                     else:
-                        errors.append({'symbol': symbol, 'error': result.get('error', '未知错误')})
-                        print(f"  ❌ [{completed_count}/{len(symbols)}] {symbol}: 分析失败 - {result.get('error', '未知错误')}")
+                        errors.append({'symbol': symbol, 'error': result.error or '未知错误'})
+                        print(f"  ❌ [{completed_count}/{len(symbols)}] {symbol}: 分析失败 - {result.error or '未知错误'}")
                         
                 except Exception as e:
                     error_msg = f"{symbol}分析异常: {str(e)}"
@@ -106,7 +106,7 @@ class BatchPortfolioAnalyzer:
         total_time = time.time() - start_time
         
         # 按置信度排序
-        results.sort(key=lambda x: x['confidence_score'], reverse=True)
+        results.sort(key=lambda x: x.confidence_score, reverse=True)
         
         # 显示汇总
         self._print_summary(results, errors, total_time)
@@ -150,7 +150,7 @@ class BatchPortfolioAnalyzer:
         symbol: str, 
         market_data: Dict[str, Any],
         selected_analysts: Optional[List[str]]
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """分析单支股票"""
         try:
             # 使用快速模式执行工作流
@@ -162,14 +162,18 @@ class BatchPortfolioAnalyzer:
             )
             return result
         except Exception as e:
-            return {
-                'success': False,
-                'symbol': symbol,
-                'error': str(e),
-                'mode': 'quick'
-            }
+            # 为了保持一致性，这里也返回一个简单的WorkflowResult对象
+            from core.workflow import WorkflowResult, WorkflowStage
+            return WorkflowResult(
+                success=False,
+                session_id="",
+                symbol=symbol,
+                stage=WorkflowStage.INITIALIZATION,
+                error=str(e),
+                mode='quick'
+            )
     
-    def _print_summary(self, results: List[Dict[str, Any]], errors: List[Dict[str, Any]], total_time: float):
+    def _print_summary(self, results: List[Any], errors: List[Dict[str, Any]], total_time: float):
         """打印汇总信息"""
         success_count = len(results)
         total_count = success_count + len(errors)
@@ -183,9 +187,9 @@ class BatchPortfolioAnalyzer:
         if results:
             print(f"\n🎯 TOP 5 推荐（按置信度排序）:")
             for i, result in enumerate(results[:5], 1):
-                action_emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(result['recommendation'], "⚪")
-                print(f"  {i}. {action_emoji} {result['symbol']}: {result['recommendation']} "
-                      f"(置信度: {result['confidence_score']:.2f}, 目标价: ${result['target_price']:.2f})")
+                action_emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(result.recommendation, "⚪")
+                print(f"  {i}. {action_emoji} {result.symbol}: {result.recommendation} "
+                      f"(置信度: {result.confidence_score:.2f}, 目标价: ${result.target_price:.2f})")
     
     def _save_results(self, results: List[Dict[str, Any]], errors: List[Dict[str, Any]], output_file: str):
         """保存结果到文件"""
@@ -211,21 +215,21 @@ class BatchPortfolioAnalyzer:
             writer.writeheader()
             for result in results:
                 # 截断reasoning字段以适应CSV
-                reasoning = result['reasoning']
+                reasoning = result.reasoning
                 if len(reasoning) > 200:
                     reasoning = reasoning[:200] + '...'
                 
                 writer.writerow({
-                    'symbol': result['symbol'],
-                    'recommendation': result['recommendation'],
-                    'confidence_score': result['confidence_score'],
-                    'target_price': result['target_price'],
-                    'acceptable_price_min': result['acceptable_price_min'],
-                    'acceptable_price_max': result['acceptable_price_max'],
-                    'take_profit': result['take_profit'],
-                    'stop_loss': result['stop_loss'],
-                    'position_size': result['position_size'],
-                    'time_horizon': result['time_horizon'],
+                    'symbol': result.symbol,
+                    'recommendation': result.recommendation,
+                    'confidence_score': result.confidence_score,
+                    'target_price': result.target_price,
+                    'acceptable_price_min': result.acceptable_price_min,
+                    'acceptable_price_max': result.acceptable_price_max,
+                    'take_profit': result.take_profit,
+                    'stop_loss': result.stop_loss,
+                    'position_size': result.position_size,
+                    'time_horizon': result.time_horizon,
                     'reasoning': reasoning
                 })
     
@@ -250,9 +254,7 @@ def main():
     
     # 15支股票投资组合
     portfolio_symbols = [
-        'AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSM', 'ASML',
-        'AMD', 'QCOM', 'INTC', 'V', 'JPM', 'BRK.B',
-        'JNJ', 'PG', 'MCD'
+        'QCOM'
     ]
     
     # 选择的分析师（可以根据需要调整）

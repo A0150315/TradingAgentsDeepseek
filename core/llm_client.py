@@ -77,7 +77,11 @@ class LLMClient:
             openai.RateLimitError, 
             openai.APITimeoutError, 
             openai.InternalServerError,
-            openai.APIConnectionError
+            openai.APIConnectionError,
+            openai.APIError,
+            ConnectionError,
+            TimeoutError,
+            Exception
         )),
         before_sleep=before_sleep_log(retry_logger, logging.WARNING),  # 重试前记录日志  
         reraise=True

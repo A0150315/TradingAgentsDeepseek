@@ -65,6 +65,19 @@ class WorkflowResult:
     final_decision: Optional[Dict[str, Any]] = None
     execution_time: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    
+    # 快速模式专用属性
+    recommendation: Optional[str] = None
+    confidence_score: Optional[float] = None
+    target_price: Optional[float] = None
+    acceptable_price_min: Optional[float] = None
+    acceptable_price_max: Optional[float] = None
+    take_profit: Optional[float] = None
+    stop_loss: Optional[float] = None
+    position_size: Optional[float] = None
+    time_horizon: Optional[str] = None
+    reasoning: Optional[str] = None
+    mode: Optional[str] = None
 
 
 @dataclass
@@ -220,37 +233,8 @@ class WorkflowOrchestrator:
                 results[stage] = stage_result
                 self._log_stage_completion(symbol, stage, stage_result)
             
-            # 根据模式创建结果
-            if quick_mode:
-                # 快速模式：直接返回交易决策结果
-                trading_result = results[WorkflowStage.TRADING]
-                if trading_result['success']:
-                    trading_decision = trading_result['trading_decision']
-                    return {
-                        'success': True,
-                        'symbol': symbol,
-                        'recommendation': trading_decision.recommendation,
-                        'confidence_score': trading_decision.confidence_score,
-                        'target_price': trading_decision.target_price,
-                        'acceptable_price_min': trading_decision.acceptable_price_min,
-                        'acceptable_price_max': trading_decision.acceptable_price_max,
-                        'take_profit': trading_decision.take_profit,
-                        'stop_loss': trading_decision.stop_loss,
-                        'position_size': trading_decision.position_size,
-                        'time_horizon': trading_decision.time_horizon,
-                        'reasoning': trading_decision.reasoning,
-                        'mode': 'quick'
-                    }
-                else:
-                    return {
-                        'success': False,
-                        'symbol': symbol,
-                        'error': trading_result.get('error', '交易决策失败'),
-                        'mode': 'quick'
-                    }
-            else:
-                # 完整模式：创建完整的工作流结果
-                return self._create_success_result(session_id, symbol, results, quick_mode)
+            # 创建成功结果
+            return self._create_success_result(session_id, symbol, results, quick_mode)
             
         except Exception as e:
             return self._handle_workflow_exception(session_id, symbol, e)
@@ -601,39 +585,86 @@ class WorkflowOrchestrator:
             metadata=result.get('metadata', {})
         )
     
-    def _create_success_result(self, session_id: str, symbol: str, results: Dict[str, Any]) -> WorkflowResult:
+    def _create_success_result(self, session_id: str, symbol: str, results: Dict[str, Any], quick_mode: bool = False) -> WorkflowResult:
         """创建成功结果"""
-        final_decision = results[WorkflowStage.FINAL_DECISION]['investment_decision']
-        
-        print("\n✅ 工作流执行完成")
-        print(f"最终决策: {final_decision['final_recommendation']}")
-        print(f"置信度: {final_decision['confidence_score']:.2f}")
-        
-        self.logger.log_workflow_stage(
-            ticker=symbol,
-            stage="工作流完成",
-            content=f"交易工作流执行完成\n\n**最终决策**: {final_decision['final_recommendation']}\n**置信度**: {final_decision['confidence_score']:.2f}",
-            success=True,
-            metadata={
-                "final_recommendation": final_decision['final_recommendation'],
-                "final_confidence": final_decision['confidence_score'],
-                "execution_time": datetime.now().isoformat()
-            }
-        )
-        
-        return WorkflowResult(
-            success=True,
-            session_id=session_id,
-            symbol=symbol,
-            stage=WorkflowStage.COMPLETION,
-            analysis_results=results[WorkflowStage.ANALYSIS],
-            debate_results=results[WorkflowStage.DEBATE],
-            trading_decision=results[WorkflowStage.TRADING],
-            risk_management=results[WorkflowStage.RISK_MANAGEMENT],
-            fund_manager_result=results[WorkflowStage.FINAL_DECISION],
-            final_decision=final_decision,
-            execution_time=datetime.now().isoformat()
-        )
+        if quick_mode:
+            # 快速模式：使用交易员决策
+            trading_result = results[WorkflowStage.TRADING]
+            if not trading_result['success']:
+                # 交易阶段失败，返回失败结果
+                return WorkflowResult(
+                    success=False,
+                    session_id=session_id,
+                    symbol=symbol,
+                    stage=WorkflowStage.TRADING,
+                    error=trading_result.get('error', '交易决策失败'),
+                    mode='quick'
+                )
+            
+            trading_decision = trading_result['trading_decision']
+            final_recommendation = trading_decision.recommendation
+            final_confidence = trading_decision.confidence_score
+            
+            print("\n✅ 工作流执行完成（快速模式）")
+            print(f"最终决策: {final_recommendation}")
+            print(f"置信度: {final_confidence:.2f}")
+            
+            return WorkflowResult(
+                success=True,
+                session_id=session_id,
+                symbol=symbol,
+                stage=WorkflowStage.COMPLETION,
+                analysis_results=results[WorkflowStage.ANALYSIS],
+                debate_results=results[WorkflowStage.DEBATE],
+                trading_decision=results[WorkflowStage.TRADING],
+                execution_time=datetime.now().isoformat(),
+                # 快速模式专用属性
+                recommendation=trading_decision.recommendation,
+                confidence_score=trading_decision.confidence_score,
+                target_price=trading_decision.target_price,
+                acceptable_price_min=trading_decision.acceptable_price_min,
+                acceptable_price_max=trading_decision.acceptable_price_max,
+                take_profit=trading_decision.take_profit,
+                stop_loss=trading_decision.stop_loss,
+                position_size=trading_decision.position_size,
+                time_horizon=trading_decision.time_horizon,
+                reasoning=trading_decision.reasoning,
+                mode='quick'
+            )
+        else:
+            # 完整模式：使用基金经理决策
+            final_decision = results[WorkflowStage.FINAL_DECISION]['investment_decision']
+            
+            print("\n✅ 工作流执行完成")
+            print(f"最终决策: {final_decision['final_recommendation']}")
+            print(f"置信度: {final_decision['confidence_score']:.2f}")
+            
+            self.logger.log_workflow_stage(
+                ticker=symbol,
+                stage="工作流完成",
+                content=f"交易工作流执行完成\n\n**最终决策**: {final_decision['final_recommendation']}\n**置信度**: {final_decision['confidence_score']:.2f}",
+                success=True,
+                metadata={
+                    "final_recommendation": final_decision['final_recommendation'],
+                    "final_confidence": final_decision['confidence_score'],
+                    "execution_time": datetime.now().isoformat()
+                }
+            )
+            
+            return WorkflowResult(
+                success=True,
+                session_id=session_id,
+                symbol=symbol,
+                stage=WorkflowStage.COMPLETION,
+                analysis_results=results[WorkflowStage.ANALYSIS],
+                debate_results=results[WorkflowStage.DEBATE],
+                trading_decision=results[WorkflowStage.TRADING],
+                risk_management=results[WorkflowStage.RISK_MANAGEMENT],
+                fund_manager_result=results[WorkflowStage.FINAL_DECISION],
+                final_decision=final_decision,
+                execution_time=datetime.now().isoformat(),
+                mode='full'
+            )
     
     def _create_failure_result(self, session_id: str, symbol: str, stage: WorkflowStage, error: str) -> WorkflowResult:
         """创建失败结果"""
