@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from core.workflow import create_workflow_orchestrator
 from tools.yfinance_tool import YFinanceTool
+from utils.email_sender import create_email_sender
 
 
 class BatchPortfolioAnalyzer:
@@ -254,7 +255,10 @@ def main():
     
     # 15支股票投资组合
     portfolio_symbols = [
-        'QCOM'
+        'AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSM', 'ASML',
+        'AMD', 'QCOM', 'INTC', 'V', 'JPM', 'BRK.B',
+        'JNJ', 'PG', 'MCD'
+
     ]
     
     # 选择的分析师（可以根据需要调整）
@@ -286,6 +290,28 @@ def main():
             print(f"\n🎉 批量分析成功完成!")
             print(f"📊 成功分析 {batch_result['successful_count']}/{batch_result['total_analyzed']} 支股票")
             print(f"⏱️ 总耗时: {batch_result['execution_time']:.1f}秒")
+            
+            # 发送邮件报告
+            print("\n📧 准备发送邮件报告...")
+            try:
+                email_sender = create_email_sender()
+                success = email_sender.send_analysis_report(
+                    csv_file=output_file,
+                    analysis_summary=batch_result,
+                    timestamp=timestamp,
+                    subject_prefix="投资组合分析报告"
+                )
+                
+                if success:
+                    print("✅ 邮件报告发送成功!")
+                else:
+                    print("❌ 邮件报告发送失败")
+                    
+            except Exception as email_error:
+                print(f"📧 邮件发送异常: {str(email_error)}")
+                import traceback
+                traceback.print_exc()
+                
         else:
             print(f"\n❌ 批量分析失败")
             
