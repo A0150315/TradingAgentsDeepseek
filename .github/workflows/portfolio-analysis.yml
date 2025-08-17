@@ -1,0 +1,120 @@
+name: 📊 投资组合分析报告
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # UTC 17:00 = 北京时间 01:00
+  workflow_dispatch:
+
+jobs:
+  portfolio-analysis:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 🔍 检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: 🐍 设置 Python 环境
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: 📦 安装编译依赖 (build-essential, wget)
+      run: sudo apt-get update && sudo apt-get install -y build-essential wget
+
+    - name: 🔧 下载、编译并安装 TA-Lib C 库 (v0.4.0)
+      run: |
+        echo "下载 TA-Lib C 库源码..."
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        echo "解压源码..."
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib/
+        echo "配置 TA-Lib C 库 (prefix=/usr)..."
+        ./configure --prefix=/usr
+        echo "编译 TA-Lib C 库..."
+        make
+        echo "安装 TA-Lib C 库..."
+        sudo make install
+        echo "更新动态链接器缓存..."
+        sudo ldconfig
+        cd ..
+        echo "TA-Lib C 库安装完成."
+
+    - name: ✅ 验证 TA-Lib C 库安装
+      run: |
+        echo "验证 /usr/lib 中的 TA-Lib 库文件..."
+        ls -l /usr/lib/libta_lib* || (echo "库文件未在 /usr/lib 中找到!" && exit 1)
+        echo "验证 /usr/include/ta-lib 中的 TA-Lib 头文件..."
+        ls -l /usr/include/ta-lib/ta_libc.h || (echo "头文件未在 /usr/include/ta-lib 中找到!" && exit 1)
+
+    - name: 🔨 首先安装 TA-Lib 的 Python 构建依赖
+      run: |
+        python -m pip install --upgrade pip
+        echo "安装 Cython, NumPy<2, 和 wheel..."
+        pip install "cython>=0.29.36" "numpy<2" "wheel" --verbose
+
+    - name: 🎯 单独安装 TA-Lib Python 包装器
+      run: |
+        export TA_INCLUDE_PATH="/usr/include"
+        export TA_LIBRARY_PATH="/usr/lib"
+        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+        echo "TA_INCLUDE_PATH=${TA_INCLUDE_PATH}"
+        echo "TA_LIBRARY_PATH=${TA_LIBRARY_PATH}"
+        echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+
+        echo "安装 TA-Lib==0.4.29..."
+        pip install --no-build-isolation TA-Lib==0.4.29 --verbose
+
+    - name: 📚 安装剩余的 Python 依赖
+      run: |
+        echo "从 requirements.txt 安装剩余的依赖..."
+        # Pip 会跳过已安装的 numpy 和 TA-Lib
+        pip install -r requirements.txt --verbose
+
+    - name: 🔧 配置环境变量
+      env:
+        # DeepSeek API配置
+        DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        DEEPSEEK_BASE_URL: ${{ secrets.DEEPSEEK_BASE_URL }}
+        DEEPSEEK_MODEL: ${{ secrets.DEEPSEEK_MODEL }}
+        
+        # 邮件配置
+        EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+        EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+        EMAIL_SENDER_EMAIL: ${{ secrets.EMAIL_SENDER_EMAIL }}
+        EMAIL_SENDER_NAME: ${{ secrets.EMAIL_SENDER_NAME }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_RECEIVER_EMAIL: ${{ secrets.EMAIL_RECEIVER_EMAIL }}
+      run: |
+        # 创建.env文件
+        echo "DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}" >> .env
+        echo "DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL}" >> .env
+        echo "DEEPSEEK_MODEL=${DEEPSEEK_MODEL}" >> .env
+        echo "EMAIL_SMTP_SERVER=${EMAIL_SMTP_SERVER}" >> .env
+        echo "EMAIL_PORT=${EMAIL_PORT}" >> .env
+        echo "EMAIL_SENDER_EMAIL=${EMAIL_SENDER_EMAIL}" >> .env
+        echo "EMAIL_SENDER_NAME=${EMAIL_SENDER_NAME}" >> .env
+        echo "EMAIL_PASSWORD=${EMAIL_PASSWORD}" >> .env
+        echo "EMAIL_RECEIVER_EMAIL=${EMAIL_RECEIVER_EMAIL}" >> .env
+        
+        echo "✅ 环境变量配置完成"
+
+    - name: 📈 运行投资组合分析
+      run: |
+        echo "🚀 开始执行投资组合分析..."
+        python batch_portfolio_analyzer.py
+
+    - name: 📊 上传分析结果作为构建产物
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: portfolio-analysis-results-${{ github.run_id }}
+        path: |
+          portfolio_analysis_*.csv
+          logs/
+        retention-days: 7
+
+    - name: 🧹 清理敏感文件
+      if: always()
+      run: |
+        rm -f .env
+        echo "🧹 敏感文件已清理"
