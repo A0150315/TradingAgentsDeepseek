@@ -278,7 +278,7 @@ def main():
     
     try:
         # 创建分析器
-        analyzer = BatchPortfolioAnalyzer(max_workers=2)
+        analyzer = BatchPortfolioAnalyzer(max_workers=15)
         
         # 执行批量分析
         batch_result = analyzer.analyze_portfolio(
