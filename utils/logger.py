@@ -20,9 +20,8 @@ class StructuredLogger:
     def __init__(self, name: str = "TradingAgents"):
         self.name = name
         self._setup_logger()
-        # 全局调用序号计数器，按会话重置
-        self._session_call_counter = 0
-        self._current_session_ticker = None
+        # 按ticker分别计数，避免多线程冲突
+        self._ticker_call_counters = {}
     
     def _setup_logger(self):
         """配置日志系统"""
@@ -363,13 +362,14 @@ class StructuredLogger:
             success: 是否执行成功
         """
         try:
-            # 重置计数器（如果是新的ticker会话）
-            if self._current_session_ticker != ticker.upper():
-                self._current_session_ticker = ticker.upper()
-                self._session_call_counter = 0
+            # 获取或初始化该ticker的计数器
+            ticker_upper = ticker.upper()
+            if ticker_upper not in self._ticker_call_counters:
+                self._ticker_call_counters[ticker_upper] = 0
             
             # 递增调用序号
-            self._session_call_counter += 1
+            self._ticker_call_counters[ticker_upper] += 1
+            call_counter = self._ticker_call_counters[ticker_upper]
             
             # 创建日期/ticker目录结构
             today = datetime.now().strftime("%Y-%m-%d")
@@ -378,14 +378,14 @@ class StructuredLogger:
             
             # 文件名格式: 序号.agent_name.md
             agent_filename = agent_name.lower().replace(' ', '_').replace('师', '').replace('员', '')
-            file_path = log_dir / f"{self._session_call_counter:02d}.{agent_filename}.md"
+            file_path = log_dir / f"{call_counter:02d}.{agent_filename}.md"
             
             # 构建markdown内容
             timestamp = datetime.now().strftime("%H:%M:%S")
             status_emoji = "✅" if success else "❌"
             
             markdown_content = []
-            markdown_content.append(f"# {status_emoji} {agent_name} - LLM调用链路 #{self._session_call_counter}")
+            markdown_content.append(f"# {status_emoji} {agent_name} - LLM调用链路 #{call_counter}")
             markdown_content.append(f"**股票**: {ticker.upper()}")
             markdown_content.append(f"**时间**: {today} {timestamp}")
             markdown_content.append(f"**状态**: {'成功' if success else '失败'}")
@@ -471,7 +471,7 @@ class StructuredLogger:
             total_latency = sum(call.get('metadata', {}).get('latency', 0) for call in llm_calls)
             
             markdown_content.append("## 📊 调用统计")
-            markdown_content.append(f"- **调用序号**: {self._session_call_counter}")
+            markdown_content.append(f"- **调用序号**: {call_counter}")
             markdown_content.append(f"- **智能体**: {agent_name}")
             markdown_content.append(f"- **LLM调用次数**: {len(llm_calls)}")
             markdown_content.append(f"- **总Token数**: {total_tokens}")
@@ -497,16 +497,29 @@ class StructuredLogger:
         """重置会话计数器
         
         Args:
-            ticker: 新的股票代码，如果提供则更新当前会话ticker
+            ticker: 股票代码，如果提供则重置该ticker的计数器，否则重置所有计数器
         """
-        self._session_call_counter = 0
         if ticker:
-            self._current_session_ticker = ticker.upper()
-        self.info(f"会话计数器已重置，当前ticker: {self._current_session_ticker}")
+            ticker_upper = ticker.upper()
+            self._ticker_call_counters[ticker_upper] = 0
+            self.info(f"已重置 {ticker_upper} 的计数器")
+        else:
+            self._ticker_call_counters.clear()
+            self.info("已重置所有ticker的计数器")
     
-    def get_current_call_number(self) -> int:
-        """获取当前调用序号"""
-        return self._session_call_counter
+    def get_current_call_number(self, ticker: str = None) -> int:
+        """获取当前调用序号
+        
+        Args:
+            ticker: 股票代码，如果不提供则返回0
+            
+        Returns:
+            该ticker的当前调用序号
+        """
+        if ticker:
+            ticker_upper = ticker.upper()
+            return self._ticker_call_counters.get(ticker_upper, 0)
+        return 0
 
     def get_session_dir(self, ticker: str) -> Path:
         """获取当前会话的markdown目录
@@ -551,9 +564,9 @@ def reset_session_counter(ticker: str = None):
     """重置会话计数器"""
     trading_logger.reset_session_counter(ticker)
 
-def get_current_call_number() -> int:
+def get_current_call_number(ticker: str = None) -> int:
     """获取当前调用序号"""
-    return trading_logger.get_current_call_number()
+    return trading_logger.get_current_call_number(ticker)
 
 # 便捷函数
 def log_info(message: str, **kwargs):

@@ -33,7 +33,6 @@ class BatchPortfolioAnalyzer:
             max_workers: 最大并行工作数量，建议3以避免API限流
         """
         self.max_workers = max_workers
-        self.orchestrator = create_workflow_orchestrator()
         self.yfinance_tool = YFinanceTool()
         
     def analyze_portfolio(
@@ -154,8 +153,11 @@ class BatchPortfolioAnalyzer:
     ) -> Any:
         """分析单支股票"""
         try:
+            # 为每个股票创建独立的orchestrator实例
+            orchestrator = create_workflow_orchestrator()
+            
             # 使用快速模式执行工作流
-            result = self.orchestrator.execute_trading_workflow(
+            result = orchestrator.execute_trading_workflow(
                 symbol=symbol,
                 market_data=market_data,
                 selected_analysts=selected_analysts,
@@ -256,7 +258,7 @@ def main():
     # 15支股票投资组合
     portfolio_symbols = [
         'AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSM', 'ASML',
-        'AMD', 'QCOM', 'INTC', 'V', 'JPM', 'BRK.B',
+        'AMD', 'QCOM', 'INTC', 'V', 'JPM', 'BRK-B',
         'JNJ', 'PG', 'MCD'
 
     ]
@@ -276,7 +278,7 @@ def main():
     
     try:
         # 创建分析器
-        analyzer = BatchPortfolioAnalyzer(max_workers=1)
+        analyzer = BatchPortfolioAnalyzer(max_workers=2)
         
         # 执行批量分析
         batch_result = analyzer.analyze_portfolio(
