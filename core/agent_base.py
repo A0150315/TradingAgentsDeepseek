@@ -2,10 +2,12 @@
 基础Agent类
 提供所有智能体的通用功能和接口
 """
-import json
+import json_repair
 import time
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Callable
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 
 from .llm_client import LLMClient
 from .tool_manager import ToolManager
@@ -153,6 +155,18 @@ class BaseAgent(ABC):
         
         return response
     
+    @retry(
+        stop=stop_after_attempt(3),  # 最多重试3次
+        wait=wait_exponential(multiplier=1, min=2, max=8),  # 指数退避，2-8秒之间
+        retry=retry_if_exception_type((
+            ValueError,  # 工具调用失败
+            TypeError,   # 参数类型错误
+            AttributeError,  # 属性错误
+            Exception  # 其他异常
+        )),
+        before_sleep=before_sleep_log(logging.getLogger(__name__), logging.WARNING),
+        reraise=True
+    )
     def process_with_tools_return_result(self, user_message: str, target_tool_name: str, max_iterations: int = 10) -> Dict[str, Any]:
         """使用工具处理消息并返回指定工具的调用结果
         
@@ -247,11 +261,9 @@ class BaseAgent(ABC):
                 
                 for tool_call in tool_calls:
                     tool_name = tool_call["function"]
-                    try:
-                        args = json.loads(tool_call["arguments"])
-                    except json.JSONDecodeError:
-                        logger.warning(f"[{self.name}] 工具参数解析失败: {tool_call['arguments']}")
-                        args = {}
+                    
+                    # 解析工具参数，使用json_repair替代json.loads
+                    args = self._parse_tool_arguments(tool_call["arguments"])
                     
                     try:
                         result = self.tool_manager.execute_tool(tool_name, args, self.name)
@@ -271,7 +283,7 @@ class BaseAgent(ABC):
                         })
                     except Exception as e:
                         result_str = f"工具执行失败: {str(e)}"
-                        logger.error(f"[{self.name}] 工具执行异常: {str(e)}")
+                        logger.error(f"[{self.name}] 工具 {tool_name} 执行失败: {str(e)}")
                         
                         # 收集工具结果用于LLM调用链路记录
                         tool_results.append({
@@ -378,6 +390,16 @@ class BaseAgent(ABC):
     def execute_with_llm_logging(self, context: Dict[str, Any], process_func: callable) -> Dict[str, Any]:
         """执行process方法并自动处理LLM调用链路记录"""
         return self.conversation_manager.execute_with_llm_logging(context, process_func)
+    
+    def _parse_tool_arguments(self, arguments_str: str) -> Dict[str, Any]:
+        """解析工具参数，使用json_repair处理格式问题"""
+        try:
+            # 直接使用json_repair.loads，它会自动尝试修复
+            return json_repair.loads(arguments_str)
+        except Exception as e:
+            logger.error(f"[{self.name}] json_repair无法解析参数: {str(e)}")
+            logger.error(f"[{self.name}] 原始参数内容: {arguments_str}")
+            return {}
     
     def execute_debate_with_llm_logging(self, topic: str, opponent_message: str, context: Dict[str, Any], debate_func: callable) -> str:
         """执行debate方法并自动处理LLM调用链路记录"""
