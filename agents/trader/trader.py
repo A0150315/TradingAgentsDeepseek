@@ -222,7 +222,8 @@ class Trader(BaseAgent):
    - 曾经的错误决策教训
    - 经验总结和改进措施
 
-请使用 emit_trading_decision 工具提供最终的交易决策结果。
+<MUST>MUST OUTPUT ONLY USE TOOLS, DO NOT OUTPUT ANYTHING ELSE.</MUST>
+必须使用且仅使用 emit_trading_decision 工具提供最终的交易决策结果。
 请确保决策逻辑清晰、风险可控，并充分利用所有可用信息。最终必须给出明确的交易建议。
 """
         return prompt

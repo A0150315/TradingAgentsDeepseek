@@ -253,7 +253,7 @@ class StateManager:
     def add_analysis_report(self, report: AnalysisReport):
         """添加分析报告"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         role = report.analyst_role
         if role == AgentRole.FUNDAMENTAL_ANALYST:
@@ -285,7 +285,12 @@ class StateManager:
     def start_research_debate(self, participants: List[AgentRole], max_rounds: int = 3) -> DebateState:
         """开始研究团队辩论"""
         if not self.current_session:
-            raise ValueError("No active session")
+            # 返回一个临时的辩论状态
+            return DebateState(
+                participants=participants,
+                current_round=0,
+                max_rounds=max_rounds
+            )
         
         debate_state = DebateState(
             participants=participants,
@@ -299,7 +304,12 @@ class StateManager:
     def start_risk_debate(self, participants: List[AgentRole], max_rounds: int = 3) -> DebateState:
         """开始风险管理团队辩论"""
         if not self.current_session:
-            raise ValueError("No active session")
+            # 返回一个临时的辩论状态
+            return DebateState(
+                participants=participants,
+                current_round=0,
+                max_rounds=max_rounds
+            )
         
         debate_state = DebateState(
             participants=participants,
@@ -323,7 +333,16 @@ class StateManager:
             消息对象
         """
         if not self.current_session:
-            raise ValueError("No active session")
+            # 创建临时消息但不存储
+            self.message_counter += 1
+            return Message(
+                id=f"msg_{self.message_counter}",
+                timestamp=datetime.now(),
+                sender=sender,
+                message_type=MessageType.DEBATE_MESSAGE,
+                content=content,
+                metadata=metadata or {}
+            )
         
         self.message_counter += 1
         message = Message(
@@ -345,21 +364,21 @@ class StateManager:
     def set_trader_decision(self, decision: Dict[str, Any]):
         """设置交易员决策"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         self.current_session.trader_decision = decision
     
     def set_final_recommendation(self, recommendation: Dict[str, Any]):
         """设置最终推荐"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         self.current_session.final_recommendation = recommendation
     
     def add_executed_trade(self, trade: Dict[str, Any]):
         """添加已执行交易"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         trade['timestamp'] = datetime.now().isoformat()
         self.current_session.executed_trades.append(trade)
@@ -367,21 +386,21 @@ class StateManager:
     def update_performance_metrics(self, metrics: Dict[str, float]):
         """更新性能指标"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         self.current_session.performance_metrics.update(metrics)
     
     def set_trading_decision(self, decision: TradingDecision):
         """设置交易决策"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         self.current_session.trader_decision = decision
     
     def set_risk_management_decision(self, decision: Dict[str, Any]):
         """设置风险管理决策"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不抛出异常
         
         self.current_session.risk_management_decision = decision
     
@@ -422,7 +441,7 @@ class StateManager:
     def save_session(self, file_path: str):
         """保存会话到文件"""
         if not self.current_session:
-            raise ValueError("No active session")
+            return  # 忽略操作，不保存
         
         state = self.get_current_session_state()
         with open(file_path, 'w', encoding='utf-8') as f:
