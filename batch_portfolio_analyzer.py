@@ -308,7 +308,23 @@ def main():
     load_dotenv()
 
     # 15支股票投资组合
-    portfolio_symbols = ["NVDA", "INTC", "V", "JPM", "BRK-B", "JNJ", "PG", "MCD"]
+    portfolio_symbols = [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "NVDA",
+        "TSM",
+        "ASML",
+        "AMD",
+        "QCOM",
+        "INTC",
+        "V",
+        "JPM",
+        "BRK-B",
+        "JNJ",
+        "PG",
+        "MCD",
+    ]
 
     # 选择的分析师（可以根据需要调整）
     selected_analysts = ["fundamental", "technical", "sentiment", "news"]
