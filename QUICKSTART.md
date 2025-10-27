@@ -202,7 +202,7 @@ coordinator = DebateCoordinator(
   "deepseek": {
     "model": "deepseek-chat",
     "max_tokens": 4000,
-    "temperature": 0.7
+    "temperature": 0
   },
   "debate": {
     "max_rounds": 3,

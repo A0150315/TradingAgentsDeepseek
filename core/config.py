@@ -16,9 +16,9 @@ class OpenAIConfig:
 
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
-    model: str = "gpt-4"
+    model: str = "gpt-5"
     max_tokens: int = 4000
-    temperature: float = 0.7
+    temperature: float = 0
     timeout: int = 60
 
 
@@ -28,9 +28,9 @@ class DeepseekConfig:
 
     api_key: str = "xxx"
     base_url: str = "https://api.deepseek.com"
-    model: str = "deepseek-chat"
+    model: str = "deepseek-v3.1-latest"
     max_tokens: int = 32000
-    temperature: float = 0.7
+    temperature: float = 0
     timeout: int = 60
 
 

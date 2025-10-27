@@ -135,9 +135,9 @@ class LLMClient:
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-                # 'temperature': kwargs.get('temperature', self.temperature),
+                'temperature': kwargs.get('temperature', self.temperature),
                 # 'timeout': kwargs.get('timeout', self.timeout),
-                "verbosity": "high",
+                # "verbosity": "high",
             }
 
             # 如果有工具，添加到请求中
