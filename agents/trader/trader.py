@@ -172,6 +172,15 @@ class Trader(BaseAgent):
         # 获取当前仓位信息
         current_position = market_context.get("current_position_size", 0.0)
         current_price = market_context.get("current_price", 0.0)
+        raw_average_price = market_context.get("average_price")
+        if current_position <= 0.0:
+            average_price = "未购入过"
+        elif raw_average_price is None:
+            average_price = "未提供"
+        elif isinstance(raw_average_price, (int, float)) and raw_average_price > 0:
+            average_price = f"${raw_average_price:.2f}"
+        else:
+            average_price = str(raw_average_price)
 
         # 整理历史经验
         past_memory_str = ""
@@ -191,6 +200,7 @@ class Trader(BaseAgent):
 股票代码: {symbol}
 当前仓位: {current_position * 100:.1f}% (0%=空仓, 100%=满仓)
 当前价格: ${current_price}
+平均持仓成本: {average_price}
 
 === 本周分析数据 ===
 【分析师团队报告】

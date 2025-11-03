@@ -197,7 +197,8 @@ class WorkflowOrchestrator:
         market_data: Optional[Dict[str, Any]] = None,
         selected_analysts: Optional[List[str]] = None,
         quick_mode: bool = False,
-        current_position_size: float = 0.0
+        current_position_size: float = 0.0,
+        average_price: Optional[float] = None
     ) -> WorkflowResult:
         """执行完整的交易工作流"""
         
@@ -205,6 +206,8 @@ class WorkflowOrchestrator:
         session_id = self._initialize_workflow(symbol, selected_analysts)
         market_data = market_data or {}
         market_data['current_position_size'] = current_position_size
+        if average_price is not None:
+            market_data['average_price'] = average_price
         selected_analysts = selected_analysts or ['fundamental', 'technical', 'sentiment', 'news']
         
         try:

@@ -43,7 +43,8 @@ class BatchPortfolioAnalyzer:
         include_market_data: bool = True,
         portfolio_positions: Optional[
             Dict[str, float]
-        ] = None,  # 新增：当前投资组合仓位
+        ] = None,
+        average_price: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
         """批量分析股票组合
 
@@ -53,11 +54,13 @@ class BatchPortfolioAnalyzer:
             output_file: 输出文件路径（可选）
             include_market_data: 是否获取市场数据
             portfolio_positions: 当前投资组合仓位 {symbol: position_size}
+            average_price: 每支股票的持仓平均成本 {symbol: average_price}
 
         Returns:
             批量分析结果
         """
         portfolio_positions = portfolio_positions or {}
+        average_price = average_price or {}
         print(f"\n🚀 开始批量分析 {len(symbols)} 支股票...")
         print("=" * 60)
         print(f"📊 并行度: {self.max_workers} 个工作线程")
@@ -65,7 +68,8 @@ class BatchPortfolioAnalyzer:
             print(f"👥 分析师: {', '.join(selected_analysts)}")
         if portfolio_positions:
             print(f"💼 当前持仓: {len(portfolio_positions)} 支股票有仓位")
-        print()
+        if average_price:
+            print(f"💰 平均买入价: {average_price}")
 
         start_time = time.time()
         results = []
@@ -88,7 +92,8 @@ class BatchPortfolioAnalyzer:
                     symbol,
                     market_data_dict.get(symbol, {}),
                     selected_analysts,
-                    portfolio_positions.get(symbol, 0.0),  # 传入当前仓位
+                    portfolio_positions.get(symbol, 0.0), 
+                    average_price.get(symbol),
                 ): symbol
                 for symbol in symbols
             }
@@ -169,6 +174,7 @@ class BatchPortfolioAnalyzer:
         market_data: Dict[str, Any],
         selected_analysts: Optional[List[str]],
         current_position_size: float = 0.0,
+        average_price: Optional[float] = None,
     ) -> Any:
         """分析单支股票"""
         try:
@@ -182,6 +188,7 @@ class BatchPortfolioAnalyzer:
                 selected_analysts=selected_analysts,
                 quick_mode=True,
                 current_position_size=current_position_size,
+                average_price=average_price,
             )
             return result
         except Exception as e:
@@ -330,11 +337,28 @@ def main():
     selected_analysts = ["fundamental", "technical", "sentiment", "news"]
 
     current_positions = {
-        "TSM": 0.241,
-        "MSFT": 0.507,
-        "NVDA": 0.175,
-        "MCD": 0.305,
-        "AMD": 0.320,
+        "AAPL": 0.5299,
+        "AMD": 0.1556,
+        "ASML": 0.6882,
+        "INTC": 0.409,
+        "JNJ": 0.507,
+        "JPM": 0.6025,
+        "MCD": 0.4082,
+        "MSFT": 0.3422,
+        "TSM": 0.3978,
+        "V": 0.2316,
+    }
+
+    average_price = {
+        "AMD": 233.35,
+        "ASML": 1032.35,
+        "INTC": 38.34,
+        "JNJ": 190.14,
+        "JPM": 301.23,
+        "MCD": 306.18,
+        "MSFT": 513.35,
+        "TSM": 298.36,
+        "V": 347.35,
     }
 
     # 输出文件名（带时间戳）
@@ -357,7 +381,8 @@ def main():
             selected_analysts=selected_analysts,
             output_file=output_file,
             include_market_data=True,
-            portfolio_positions=current_positions,  # 传入当前仓位信息
+            portfolio_positions=current_positions,
+            average_price=average_price,
         )
 
         if batch_result["success"]:
