@@ -53,7 +53,7 @@ def safe_json_dumps(obj: Any, **kwargs) -> str:
 class LLMClient:
     """LLM客户端，支持不同的API提供者"""
 
-    def __init__(self, provider: str = "openai", config: Optional[Config] = None):
+    def __init__(self, provider: str = "openai", config: Optional[Config] = None, model_override: Optional[str] = None):
         """初始化LLM客户端
 
         Args:
@@ -70,10 +70,11 @@ class LLMClient:
             api_key=llm_config["api_key"], base_url=llm_config["base_url"]
         )
 
-        self.model = llm_config["model"]
+        self.model = model_override or llm_config["model"]
         self.max_tokens = llm_config["max_tokens"]
         self.temperature = llm_config["temperature"]
         self.timeout = llm_config["timeout"]
+        self._send_temperature = not self.model.lower().startswith("gpt-5")
 
         logger.info(
             f"LLM客户端初始化成功 - Provider: {self.provider}, Model: {self.model}"
@@ -135,10 +136,13 @@ class LLMClient:
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-                'temperature': kwargs.get('temperature', self.temperature),
                 # 'timeout': kwargs.get('timeout', self.timeout),
                 # "verbosity": "high",
             }
+
+            temperature = kwargs.get('temperature', self.temperature)
+            if self._send_temperature and temperature is not None:
+                request_params['temperature'] = temperature
 
             # 如果有工具，添加到请求中
             if kwargs.get("tools"):
@@ -227,8 +231,8 @@ class LLMClient:
 
 
 def create_llm_client(
-    provider: str = "openai", config: Optional[Config] = None
+    provider: str = "openai", config: Optional[Config] = None, model_override: Optional[str] = None
 ) -> LLMClient:
     """创建LLM客户端"""
     logger.debug(f"创建LLM客户端 - Provider: {provider}")
-    return LLMClient(provider, config)
+    return LLMClient(provider, config, model_override=model_override)

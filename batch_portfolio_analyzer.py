@@ -350,6 +350,7 @@ def main():
     }
 
     average_price = {
+        "AAPL": 264.95,
         "AMD": 233.35,
         "ASML": 1032.35,
         "INTC": 38.34,

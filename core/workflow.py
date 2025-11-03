@@ -161,6 +161,29 @@ class WorkflowOrchestrator:
             'bear_researcher': create_bear_researcher(deep_llm),
         })
         
+        debate_models = getattr(self.config.debate, 'models', []) or [deep_llm.model]
+        debate_llm_pool: List[LLMClient] = []
+
+        for model_name in debate_models:
+            model_name = model_name.strip()
+            if not model_name:
+                continue
+
+            pool_key = f"debate:{model_name}"
+            client = self._llm_clients.get(pool_key)
+            if client is None:
+                try:
+                    client = create_llm_client('deepseek', self.config, model_override=model_name)
+                    self._llm_clients[pool_key] = client
+                except Exception as exc:
+                    self.logger.error(f"无法创建辩论模型客户端: {model_name} - {exc}")
+                    continue
+
+            debate_llm_pool.append(client)
+
+        if not debate_llm_pool:
+            debate_llm_pool = [deep_llm]
+
         # 交易和风险管理团队
         agents.update({
             'trader': create_trader(deep_llm),
@@ -177,7 +200,10 @@ class WorkflowOrchestrator:
                 agents['bull_researcher'],
                 agents['bear_researcher'],
                 deep_llm,
-                max_rounds=self.config.debate.research_team_max_rounds
+                max_rounds=self.config.debate.research_team_max_rounds,
+                consensus_threshold=self.config.debate.min_consensus_threshold,
+                debate_llm_pool=debate_llm_pool,
+                randomize_models=getattr(self.config.debate, 'randomize_models', False)
             ),
             'risk_debate_coordinator': create_risk_debate_coordinator(
                 agents['conservative_analyst'],

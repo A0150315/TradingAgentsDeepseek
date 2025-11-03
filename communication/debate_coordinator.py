@@ -3,6 +3,7 @@
 管理研究团队之间的辩论流程，确保充分讨论和决策达成
 """
 from typing import Dict, Any, List, Optional
+import random
 import json
 from datetime import datetime
 
@@ -30,7 +31,9 @@ class DebateCoordinator(BaseAgent):
         bear_researcher: BearResearcher,
         judge_llm: LLMClient,
         max_rounds: int = 3,
-        consensus_threshold: float = 0.6
+        consensus_threshold: float = 0.6,
+        debate_llm_pool: Optional[List[LLMClient]] = None,
+        randomize_models: bool = False
     ):
         """初始化辩论协调器
         
@@ -56,6 +59,8 @@ class DebateCoordinator(BaseAgent):
         self.max_rounds = max_rounds
         self.consensus_threshold = consensus_threshold
         self.state_manager = get_state_manager()
+        self.debate_llm_pool = debate_llm_pool or [judge_llm]
+        self.randomize_models = randomize_models and len(self.debate_llm_pool) > 1
     
     def process(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """处理辩论请求（BaseAgent抽象方法实现）
@@ -127,6 +132,19 @@ class DebateCoordinator(BaseAgent):
             'market_context': market_context or {}
         }
         return self.execute_with_llm_logging(context, self._do_conduct_research_debate)
+
+    def _select_llm_for_researcher(self, researcher: BaseAgent, label: str) -> LLMClient:
+        """为研究员选择LLM客户端，支持随机切换"""
+        if not self.randomize_models:
+            return researcher.llm_client
+
+        selected = random.choice(self.debate_llm_pool)
+        if researcher.llm_client is not selected:
+            researcher.llm_client = selected
+            logger.info(
+                f"辩论模型切换 -> {label}: {getattr(selected, 'provider', 'unknown')}/{getattr(selected, 'model', 'unknown')}"
+            )
+        return selected
     
     def _do_conduct_research_debate(
         self, 
@@ -182,6 +200,7 @@ class DebateCoordinator(BaseAgent):
             
             # 多头发言
             opponent_msg = debate_history[-1]['message'] if debate_history and debate_history[-1]['speaker'] == 'bear' else bear_thesis
+            bull_llm = self._select_llm_for_researcher(self.bull_researcher, 'bull')
             # 序列化context以避免JSON序列化错误
             safe_context = self._serialize_context_for_debate(context)
             bull_response = self.bull_researcher.debate(
@@ -194,12 +213,17 @@ class DebateCoordinator(BaseAgent):
                 'round': round_num + 1,
                 'speaker': 'bull',
                 'message': bull_response,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'model': getattr(bull_llm, 'model', None),
+                'provider': getattr(bull_llm, 'provider', None)
             })
             
-            print(f"  多头: {bull_response[:200]}...")
+            print(
+                f"  多头[{getattr(bull_llm, 'provider', 'unknown')}/{getattr(bull_llm, 'model', 'unknown')}]: {bull_response[:200]}..."
+            )
             
             # 空头回应
+            bear_llm = self._select_llm_for_researcher(self.bear_researcher, 'bear')
             safe_context = self._serialize_context_for_debate(context)
             bear_response = self.bear_researcher.debate(
                 topic=topic,
@@ -211,10 +235,14 @@ class DebateCoordinator(BaseAgent):
                 'round': round_num + 1,
                 'speaker': 'bear', 
                 'message': bear_response,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'model': getattr(bear_llm, 'model', None),
+                'provider': getattr(bear_llm, 'provider', None)
             })
             
-            print(f"  空头: {bear_response[:200]}...")
+            print(
+                f"  空头[{getattr(bear_llm, 'provider', 'unknown')}/{getattr(bear_llm, 'model', 'unknown')}]: {bear_response[:200]}..."
+            )
             
             # 检查是否应该提前结束辩论（可选功能）
             # 这里可以添加收敛条件检查
