@@ -153,10 +153,13 @@ class EmailSender:
             return '<div class="budget-section"><h2>💰 预算方案</h2><p>暂无可用的交易建议数据</p></div>'
 
         sections = []
+        emoji_map = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}
         for budget in [1000, 2000, 1500]:
             rows = []
             for result in results:
                 symbol = self._get_value(result, 'symbol', 'N/A')
+                recommendation = self._get_value(result, 'recommendation', 'N/A')
+                recommendation_display = f"{emoji_map.get(recommendation, '⚪')} {recommendation}"
                 pos_size = self._get_value(result, 'position_size', 0) or 0
                 max_price = self._get_value(result, 'acceptable_price_max')
                 stop_loss = self._get_value(result, 'stop_loss')
@@ -166,6 +169,7 @@ class EmailSender:
                 rows.append(
                     f'<tr>'
                     f'<td>{symbol}</td>'
+                    f'<td>{recommendation_display}</td>'
                     f'<td>{self._fmt_currency(budget)}</td>'
                     f'<td>{self._fmt_percentage(pos_size)}</td>'
                     f'<td>{self._fmt_currency(allocation)}</td>'
@@ -179,7 +183,7 @@ class EmailSender:
 <div class="budget-section">
     <h2>💰 预算方案：每只股票 {self._fmt_currency(budget)}<span class="badge">固定预算</span></h2>
     <table>
-        <tr><th>股票代码</th><th>预算金额</th><th>建议仓位</th><th>建议投入金额</th><th>可接受最高价</th><th>止损价</th><th>止盈价</th></tr>
+        <tr><th>股票代码</th><th>建议方向</th><th>预算金额</th><th>建议仓位</th><th>建议投入金额</th><th>可接受最高价</th><th>止损价</th><th>止盈价</th></tr>
         {''.join(rows)}
     </table>
 </div>
