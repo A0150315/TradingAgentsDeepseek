@@ -87,12 +87,15 @@ class EmailSender:
         .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
         .content {{ padding: 20px; }}
         .summary {{ background-color: #f9f9f9; padding: 15px; border-left: 4px solid #4CAF50; margin: 20px 0; }}
-        .recommendations, .budget-section {{ margin: 30px 0; }}
+        .recommendations, .budget-section, .reasoning-section {{ margin: 30px 0; }}
         .footer {{ background-color: #333; color: white; padding: 15px; text-align: center; font-size: 12px; }}
         table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
         th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         th {{ background-color: #f2f2f2; }}
         .badge {{ display: inline-block; padding: 3px 8px; border-radius: 4px; background-color: #4CAF50; color: white; font-size: 12px; margin-left: 8px; }}
+        .reasoning-section ul {{ list-style: none; padding-left: 0; }}
+        .reasoning-section li {{ margin-bottom: 12px; line-height: 1.5; }}
+        .reasoning-section strong {{ margin-right: 6px; }}
     </style>
 </head>
 <body>
@@ -108,6 +111,7 @@ class EmailSender:
             <p><strong>执行时间:</strong> {execution_time:.1f}秒 | <strong>成功率:</strong> {success_rate:.1f}%</p>
         </div>
         
+        {self._generate_reasoning_summary(results)}
         {self._generate_recommendations_html(results)}
         {self._generate_budget_sections(results)}
     </div>
@@ -191,6 +195,48 @@ class EmailSender:
         
         return ''.join(sections)
 
+    def _generate_reasoning_summary(self, results: List[Any]) -> str:
+        """生成操作理由概览"""
+        if not results:
+            return ''
+
+        items = []
+        emoji_map = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}
+
+        for result in results:
+            symbol = self._get_value(result, 'symbol')
+            if not symbol:
+                continue
+
+            recommendation = self._get_value(result, 'recommendation', 'N/A')
+            recommendation_display = f"{emoji_map.get(recommendation, '⚪')} {recommendation}"
+            position_size = self._get_value(result, 'position_size')
+            confidence = self._get_value(result, 'confidence_score')
+            reasoning = self._format_reasoning(self._get_value(result, 'reasoning', ''))
+
+            confidence_text = f"{float(confidence):.2f}" if confidence is not None else "N/A"
+            position_text = self._fmt_percentage(position_size)
+
+            items.append(
+                f'<li><strong>{symbol}</strong>'
+                f'｜{recommendation_display}'
+                f'｜目标仓位: {position_text}'
+                f'｜置信度: {confidence_text}'
+                f'<br>{reasoning}</li>'
+            )
+
+        if not items:
+            return ''
+
+        return f'''
+<div class="reasoning-section">
+    <h2>📝 操作理由概览</h2>
+    <ul>
+        {''.join(items)}
+    </ul>
+</div>
+'''
+
     def _get_value(self, result: Any, attr: str, default: Any = None) -> Any:
         """从结果对象或字典中获取属性值"""
         if hasattr(result, attr):
@@ -217,6 +263,22 @@ class EmailSender:
             return f"{float(value) * 100:.1f}%"
         except (TypeError, ValueError):
             return str(value)
+
+    def _truncate_text(self, text: str, max_length: int = 280) -> str:
+        """截断文本"""
+        if text is None:
+            return ""
+        text = str(text).strip()
+        if len(text) <= max_length:
+            return text
+        return text[:max_length].rstrip() + "..."
+
+    def _format_reasoning(self, reasoning: Optional[str]) -> str:
+        """格式化操作理由文本"""
+        if not reasoning:
+            return "暂无理由"
+        truncated = self._truncate_text(reasoning, 320)
+        return truncated.replace('\n', '<br>')
 
 
 def create_email_sender(**kwargs) -> EmailSender:
